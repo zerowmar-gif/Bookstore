@@ -1,29 +1,36 @@
+import os
+import datetime
+import random
 import psycopg
+from dotenv import load_dotenv
+load_dotenv()
 
-USER = "postgres"
-PASSWORD = "*****"   # потрібно ввести свій пароль
-HOST = "localhost"
-DB_NAME = "bookstore"
+
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "bookstore")
+
+
+def _conn_str(dbname: str) -> str:
+    return f"dbname={dbname} user={DB_USER} password={DB_PASSWORD} host={DB_HOST} port={DB_PORT}"
 
 
 def create_db_if_not_exists():
-    with psycopg.connect(
-        f"dbname=postgres user={USER} password={PASSWORD} host={HOST}"
-    ) as conn:
+    with psycopg.connect(_conn_str("postgres")) as conn:
         conn.autocommit = True
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM pg_database WHERE datname=%s;", (DB_NAME,))
             if cur.fetchone() is None:
                 cur.execute(f"CREATE DATABASE {DB_NAME};")
-                print(f"[DB] Створена база {DB_NAME}")
+                print(f"[DB] Створена база даних {DB_NAME}")
             else:
-                print(f"[DB] База {DB_NAME} вже існує")
+                print(f"[DB] База даних {DB_NAME} вже існує")
 
 
 def get_conn():
-    return psycopg.connect(
-        f"dbname={DB_NAME} user={USER} password={PASSWORD} host={HOST}"
-    )
+    return psycopg.connect(_conn_str(DB_NAME))
 
 
 def init_tables():
@@ -67,81 +74,86 @@ def init_tables():
             );
             """)
 
-            cur.execute("ALTER TABLE employee ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;")
-            cur.execute("ALTER TABLE book ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;")
-            cur.execute("ALTER TABLE sale ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;")
-
     print("[DB] Таблиці готові")
 
 
 def seed_data():
-    from datetime import date
-
     with get_conn() as conn:
         with conn.cursor() as cur:
-
             cur.execute("SELECT COUNT(*) FROM employee;")
-            if cur.fetchone()[0] > 0:
-                print("[DB] Seed пропущено (дані вже існують)")
-                return
+            emp_count = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM book;")
+            book_count = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM sale;")
+            sale_count = cur.fetchone()[0]
 
-            print("[DB] Додаємо seed-дані...")
+            if emp_count == 0:
+                employees = [
+                    ("Іван Петренко", "Продавець", "+380501112233", "ivan.petrenko@example.com"),
+                    ("Олена Коваль", "Продавець", "+380631234567", "olena.koval@example.com"),
+                    ("Андрій Мельник", "Старший продавець", "+380671110022", "andrii.melnyk@example.com"),
+                    ("Марія Ткаченко", "Касир", "+380951234111", "maria.tkachenko@example.com"),
+                ]
+                cur.executemany(
+                    "INSERT INTO employee (name, position, phone, email) VALUES (%s, %s, %s, %s);",
+                    employees,
+                )
+                print("[DB] Додано demo співробітників (4)")
 
+            if book_count == 0:
+                books = [
+                    ("978-617-12-0001-1", "Кобзар", "Тарас Шевченко", "Класика", 2015, 120.0, 220.0, 10),
+                    ("978-617-12-0002-8", "Лісова пісня", "Леся Українка", "Драма", 2018, 90.0, 180.0, 8),
+                    ("978-617-12-0003-5", "Тигролови", "Іван Багряний", "Роман", 2019, 110.0, 210.0, 6),
+                    ("978-617-12-0004-2", "1984", "Джордж Орвелл", "Антиутопія", 2020, 140.0, 260.0, 7),
+                    ("978-617-12-0005-9", "Маленький принц", "Антуан де Сент-Екзюпері", "Казка", 2017, 80.0, 150.0, 12),
+                    ("978-617-12-0006-6", "Гаррі Поттер 1", "Дж. К. Ролінґ", "Фентезі", 2021, 200.0, 350.0, 9),
+                    ("978-617-12-0007-3", "Місто", "Валер'ян Підмогильний", "Роман", 2016, 100.0, 190.0, 5),
+                    ("978-617-12-0008-0", "Сад Гетсиманський", "Іван Багряний", "Роман", 2022, 130.0, 240.0, 4),
+                    ("978-617-12-0009-7", "Алхімік", "Пауло Коельйо", "Роман", 2014, 95.0, 175.0, 11),
+                    ("978-617-12-0010-3", "Дюна", "Френк Герберт", "Фантастика", 2023, 220.0, 390.0, 3),
+                ]
+                cur.executemany(
+                    """
+                    INSERT INTO book (isbn, title, author, genre, year, cost_price, sale_price, quantity)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                    """,
+                    books,
+                )
+                print("[DB] Додано demo книги (10)")
 
-            cur.execute("""
-                INSERT INTO employee (name, position, phone, email)
-                VALUES
-                ('Іван Петров', 'Продавець', '+380501111111', 'ivan@test.com'),
-                ('Марія Коваль', 'Старший продавець', '+380502222222', 'maria@test.com'),
-                ('Андрій Сидоренко', 'Менеджер', '+380503333333', 'andriy@test.com'),
-                ('Ольга Романюк', 'Продавець', '+380504444444', 'olga@test.com');
-            """)
+            if sale_count == 0:
+                cur.execute("SELECT id FROM employee WHERE is_deleted=FALSE ORDER BY id;")
+                emp_ids = [r[0] for r in cur.fetchall()]
+                cur.execute("SELECT id, sale_price FROM book WHERE is_deleted=FALSE ORDER BY id;")
+                book_rows = cur.fetchall()
 
+                if emp_ids and book_rows:
+                    today = datetime.date.today()
+                    sales_to_insert = []
+                    for _ in range(10):
+                        emp_id = random.choice(emp_ids)
+                        book_id, sale_price = random.choice(book_rows)
+                        qty = random.randint(1, 2)
+                        total = float(sale_price) * qty
+                        sale_date = today - datetime.timedelta(days=random.randint(0, 30))
+                        sales_to_insert.append((emp_id, book_id, sale_date, total, qty))
 
-            cur.execute("""
-                INSERT INTO book (isbn, title, author, genre, year, cost_price, sale_price, quantity)
-                VALUES
-                ('9780000000001', 'Python Basics', 'John Smith', 'Education', 2020, 200, 400, 20),
-                ('9780000000002', 'Advanced Python', 'Anna Brown', 'Programming', 2021, 250, 500, 15),
-                ('9780000000003', 'SQL Mastery', 'David Green', 'Education', 2019, 300, 600, 18),
-                ('9780000000004', 'Clean Code', 'Robert Martin', 'Programming', 2008, 350, 700, 10),
-                ('9780000000005', 'Data Science 101', 'Emily White', 'Data', 2022, 400, 800, 12),
-                ('9780000000006', 'Machine Learning', 'Andrew Lee', 'Data', 2021, 450, 900, 8),
-                ('9780000000007', 'PostgreSQL Guide', 'Ivan Petrov', 'Database', 2020, 280, 550, 14),
-                ('9780000000008', 'Algorithms', 'Thomas Black', 'Programming', 2015, 320, 650, 16),
-                ('9780000000009', 'Web Development', 'Sarah King', 'Web', 2018, 270, 540, 11),
-                ('9780000000010', 'Design Patterns', 'Erich Gamma', 'Programming', 1994, 380, 760, 9);
-            """)
+                    for emp_id, book_id, sale_date, total, qty in sales_to_insert:
+                        cur.execute("SELECT quantity FROM book WHERE id=%s;", (book_id,))
+                        q = cur.fetchone()[0]
+                        if q >= qty:
+                            cur.execute("UPDATE book SET quantity = quantity - %s WHERE id=%s;", (qty, book_id))
+                            cur.execute(
+                                """
+                                INSERT INTO sale (employee_id, book_id, sale_date, real_price, quantity_sold)
+                                VALUES (%s, %s, %s, %s, %s);
+                                """,
+                                (emp_id, book_id, sale_date, total, qty),
+                            )
+                print("[DB] Додано demo продажі (до 10)")
 
-
-            sales = [
-                (1, 1, 2, 800),
-                (2, 2, 1, 500),
-                (3, 3, 3, 1800),
-                (4, 4, 1, 700),
-                (1, 5, 2, 1600),
-                (2, 6, 1, 900),
-                (3, 7, 2, 1100),
-                (4, 8, 1, 650),
-                (1, 9, 3, 1620),
-                (2, 10, 1, 760),
-            ]
-
-            today = date.today()
-
-            for employee_id, book_id, qty, total_price in sales:
-                cur.execute("""
-                    INSERT INTO sale (employee_id, book_id, sale_date, real_price, quantity_sold)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (employee_id, book_id, today, total_price, qty))
-
-                cur.execute("""
-                    UPDATE book
-                    SET quantity = quantity - %s
-                    WHERE id = %s
-                """, (qty, book_id))
-
-    print("[DB] Seed-дані успішно додані")
+    print("[DB] Seed готовий")
 
 
 def init_db():
