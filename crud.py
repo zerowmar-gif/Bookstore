@@ -161,7 +161,7 @@ class EmployeeCRUD:
                     cur.execute(
                         """
                         UPDATE employee
-                        SET name=%s, position=%s, phone=%s, email=%s
+                        SET name = %s, position = %s, phone = %s, email = %s
                         WHERE id=%s
                         """,
                         (new_name, new_position, new_phone, new_email, emp_id),
@@ -325,8 +325,8 @@ class BookCRUD:
                     cur.execute(
                         """
                         UPDATE book
-                        SET isbn=%s, title=%s, author=%s, genre=%s, year=%s,
-                            cost_price=%s, sale_price=%s, quantity=%s
+                        SET isbn = %s, title = %s, author = %s, genre = %s, year = %s,
+                            cost_price = %s, sale_price = %s, quantity = %s
                         WHERE id=%s
                         """,
                         (new_isbn, new_title, new_author, new_genre, new_year, new_cost, new_sale, new_qty, book_id),
@@ -505,7 +505,7 @@ class SaleCRUD:
                     cur.execute(
                         """
                         UPDATE sale
-                        SET employee_id=%s, sale_date=%s, real_price=%s
+                        SET employee_id = %s, sale_date = %s, real_price = %s
                         WHERE id=%s
                         """,
                         (new_emp_id, new_date, new_total, sale_id),
@@ -549,7 +549,7 @@ class SaleCRUD:
 def employees_menu():
     emp = EmployeeCRUD()
     while True:
-        print("\n=== СПІВРОБІТНИКИ ===")
+        print("\n--- СПІВРОБІТНИКИ ---")
         print("1) Додати")
         print("2) Список")
         print("3) Деталі")
@@ -577,7 +577,7 @@ def employees_menu():
 def books_menu():
     book = BookCRUD()
     while True:
-        print("\n=== КНИГИ ===")
+        print("\n--- КНИГИ ---")
         print("1) Додати")
         print("2) Список")
         print("3) Деталі")
@@ -605,7 +605,7 @@ def books_menu():
 def sales_menu():
     sale = SaleCRUD()
     while True:
-        print("\n=== ПРОДАЖІ ===")
+        print("\n--- ПРОДАЖІ ---")
         print("1) Створити продаж")
         print("2) Список продажів")
         print("3) Деталі продажу")
